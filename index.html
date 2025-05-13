@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Best Matcha in London</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; background: #f8f8f8; }
+    h1 { color: #4CAF50; }
+    .card {
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 10px 0;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+  </style>
+</head>
+<body>
+  <h1>🍵 Best Matcha Places in London</h1>
+  <div id="matcha-list">Loading...</div>
+
+  <script>
+    fetch('matcha_london.json')
+      .then(res => res.json())
+      .then(data => {
+        const list = document.getElementById('matcha-list');
+        list.innerHTML = '';
+        data.forEach(place => {
+          const card = document.createElement('div');
+          card.className = 'card';
+          card.innerHTML = `<strong>${place.name}</strong>`;
+          list.appendChild(card);
+        });
+      })
+      .catch(err => {
+        document.getElementById('matcha-list').textContent = 'Failed to load data.';
+        console.error(err);
+      });
+  </script>
+</body>
+</html>
