@@ -21,21 +21,49 @@
   <div id="matcha-list">Loading...</div>
 
   <script>
-    fetch('matcha_london.json')
-      .then(res => res.json())
+    fetch('london_matcha_cafes.json')
+      .then(res => {
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        return res.json();
+      })
       .then(data => {
         const list = document.getElementById('matcha-list');
         list.innerHTML = '';
+
+        if (!data || data.length === 0) {
+          list.textContent = 'No matcha places found or data is empty.';
+          return;
+        }
+
         data.forEach(place => {
           const card = document.createElement('div');
           card.className = 'card';
-          card.innerHTML = `<strong>${place.name}</strong>`;
+
+          const nameDisplay = place.website 
+            ? `<a href="${place.website}" target="_blank">${place.name}</a>` 
+            : place.name;
+          
+          const rating = place.details && place.details.rating !== undefined ? place.details.rating : 'N/A';
+          const totalRatings = place.details && place.details.user_ratings_total !== undefined ? place.details.user_ratings_total : 'N/A';
+          const address = place.address ? place.address : 'Address not available';
+          const evidence = place.matcha_evidence && place.matcha_evidence.length > 0 
+            ? `Matcha Evidence: ${place.matcha_evidence.join(', ')}` 
+            : 'Matcha Evidence: Not specified';
+
+          card.innerHTML = `
+            <h3>${nameDisplay}</h3>
+            <p>Rating: ${rating} (${totalRatings} reviews)</p>
+            <p>Address: ${address}</p>
+            <p>${evidence}</p>
+          `;
           list.appendChild(card);
         });
       })
       .catch(err => {
-        document.getElementById('matcha-list').textContent = 'Failed to load data.';
-        console.error(err);
+        document.getElementById('matcha-list').textContent = 'Failed to load matcha data. Please check the console for errors and ensure \'london_matcha_cafes.json\' is available and correctly formatted.';
+        console.error('Error fetching or processing matcha data:', err);
       });
   </script>
 </body>
