@@ -90,158 +90,158 @@ def initialize_google_maps():
         exit(1)
 
 def check_menu_for_matcha(website_url):
-    """Check the website's menu for matcha items"""
+    """Check the website's menu for matcha items by crawling relevant pages."""
     if not website_url:
-        logging.info("No website URL provided")
+        logging.info("No website URL provided for menu check.")
         return False
+
+    logging.info(f"Starting deep menu check for: {website_url}")
     
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    }
+
+    matcha_patterns = [
+        r'matcha\s*(?:latte|tea|drink|coffee|frappuccino|smoothie|shake)',
+        r'matcha\s*(?:green\s*tea|powder)',
+        r'(?:iced|hot)\s*matcha',
+        r'ceremonial\s*matcha',
+    ] # Simplified core patterns for menu items
+
     try:
-        logging.info(f"Checking menu at: {website_url}")
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        }
-        response = requests.get(website_url, headers=headers, timeout=10)
-        if response.status_code != 200:
-            logging.warning(f"Failed to fetch website: {response.status_code}")
-            return False
+        original_domain = urlparse(website_url).netloc
+        pages_to_visit = {website_url}
+        visited_pages = set()
+        pages_crawled_count = 0
+        MAX_PAGES_TO_CRAWL = 7 # Limit the number of pages to crawl per site
+
+        while pages_to_visit and pages_crawled_count < MAX_PAGES_TO_CRAWL:
+            current_url = pages_to_visit.pop()
+            if current_url in visited_pages:
+                continue
             
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Common menu-related keywords and their variations
-        menu_keywords = [
-            'menu', 'drinks', 'beverages', 'coffee', 'tea',
-            'cafe', 'café', 'coffee shop', 'coffeeshop',
-            'drink menu', 'beverage menu', 'coffee menu',
-            'tea menu', 'hot drinks', 'cold drinks'
-        ]
-        
-        # Look for menu sections in various HTML elements
-        menu_text = ""
-        menu_sections_found = []
-        
-        # Check for menu links first
-        menu_links = []
-        for keyword in menu_keywords:
-            links = soup.find_all('a', href=True, string=re.compile(keyword, re.I))
-            menu_links.extend(links)
-        
-        if menu_links:
-            logging.info(f"Found {len(menu_links)} potential menu links")
-            for link in menu_links:
-                menu_url = link['href']
-                if not menu_url.startswith(('http://', 'https://')):
-                    # Handle relative URLs
-                    base_url = f"{urlparse(website_url).scheme}://{urlparse(website_url).netloc}"
-                    menu_url = base_url + ('' if menu_url.startswith('/') else '/') + menu_url
+            visited_pages.add(current_url)
+            pages_crawled_count += 1
+            logging.info(f"Crawling ({pages_crawled_count}/{MAX_PAGES_TO_CRAWL}): {current_url}")
+
+            try:
+                time.sleep(0.5) # Politeness delay
+                response = requests.get(current_url, headers=headers, timeout=10)
+                if response.status_code != 200:
+                    logging.warning(f"Failed to fetch {current_url}: Status {response.status_code}")
+                    continue
                 
-                try:
-                    menu_response = requests.get(menu_url, headers=headers, timeout=10)
-                    if menu_response.status_code == 200:
-                        menu_soup = BeautifulSoup(menu_response.text, 'html.parser')
-                        menu_text += menu_soup.get_text() + " "
-                except Exception as e:
-                    logging.warning(f"Failed to fetch menu page {menu_url}: {e}")
-        
-        # Look for menu sections in the main page
-        for keyword in menu_keywords:
-            # Check in various HTML elements
-            elements = soup.find_all(['div', 'section', 'article', 'nav', 'ul', 'ol', 'table'], 
-                                   string=re.compile(keyword, re.I))
-            for element in elements:
-                section_text = element.get_text().strip()
-                if section_text:
-                    menu_sections_found.append(f"Found '{keyword}' section: {section_text[:100]}...")
-                    menu_text += section_text + " "
-        
-        logging.info(f"Menu sections found: {len(menu_sections_found)}")
-        for section in menu_sections_found:
-            logging.info(section)
-        
-        # Matcha-related keywords and variations
-        matcha_patterns = [
-            r'matcha\s*(?:latte|tea|drink|coffee|frappuccino|smoothie|shake)',
-            r'matcha\s*(?:green\s*tea|powder)',
-            r'(?:iced|hot)\s*matcha',
-            r'matcha\s*(?:with|and)\s*(?:milk|soy|almond|oat)',
-            r'ceremonial\s*matcha',
-            r'matcha\s*(?:espresso|shot)',
-            r'matcha\s*(?:cake|cookie|brownie|muffin|pastry)',
-            r'matcha\s*(?:ice\s*cream|gelato)',
-            r'matcha\s*(?:pancake|waffle)',
-            r'matcha\s*(?:doughnut|donut)'
-        ]
-        
-        # Check for matcha patterns in menu text
-        for pattern in matcha_patterns:
-            matches = re.finditer(pattern, menu_text, re.I)
-            for match in matches:
-                logging.info(f"Found matcha pattern '{pattern}': {match.group()}")
-                return True
+                soup = BeautifulSoup(response.text, 'html.parser')
+                page_text = soup.get_text().lower() # Get all text from the page
+
+                for pattern in matcha_patterns:
+                    if re.search(pattern, page_text):
+                        logging.info(f"Matcha found on {current_url} with pattern: {pattern}")
+                        return True
                 
-        logging.info("No matcha items found in menu")
+                # Find more internal links to crawl (simplified: only from the same domain)
+                if pages_crawled_count < MAX_PAGES_TO_CRAWL: # Only find new links if we haven't hit the max
+                    for link_tag in soup.find_all('a', href=True):
+                        href = link_tag['href']
+                        abs_url = urlparse(href)
+                        
+                        # Basic check for relative vs absolute and skip mailto/tel etc.
+                        if not abs_url.scheme and not abs_url.netloc: # Relative link
+                            joined_url = urlparse(requests.compat.urljoin(current_url, href))
+                        elif abs_url.scheme in ['http', 'https'] : # Absolute link
+                            joined_url = abs_url
+                        else: # Skip mailto, tel, javascript etc.
+                            continue
+
+                        # Check if it's an internal link and not yet visited or queued
+                        if joined_url.netloc == original_domain and joined_url.geturl() not in visited_pages and joined_url.geturl() not in pages_to_visit:
+                            # Prioritize links with "menu", "drink", "cafe" in their path or text
+                            link_text_lower = link_tag.get_text().lower()
+                            if any(keyword in joined_url.path.lower() or keyword in link_text_lower for keyword in ['menu', 'drink', 'product', 'item', 'cafe', 'beverage']):
+                                pages_to_visit.add(joined_url.geturl())
+                                logging.debug(f"Queued relevant link: {joined_url.geturl()}")
+                            elif len(pages_to_visit) < MAX_PAGES_TO_CRAWL * 2 : # Add other general internal links sparingly
+                                pages_to_visit.add(joined_url.geturl())
+                                logging.debug(f"Queued general internal link: {joined_url.geturl()}")
+
+
+            except requests.exceptions.RequestException as e:
+                logging.warning(f"Request error crawling {current_url}: {e}")
+            except Exception as e:
+                logging.error(f"Error processing page {current_url}: {e}")
+                logging.error(traceback.format_exc())
+        
+        logging.info(f"Finished crawling for {website_url}. Matcha not found in menu pages.")
         return False
-        
+
     except Exception as e:
-        logging.error(f"Error checking menu: {e}")
+        logging.error(f"Overall error in check_menu_for_matcha for {website_url}: {e}")
+        logging.error(traceback.format_exc())
         return False
 
 def check_for_matcha(place_details):
-    """Comprehensive check for matcha availability"""
-    has_matcha = False
+    """Comprehensive check for matcha availability, now primarily based on website menu scan."""
+    matcha_found_on_menu = False
     matcha_evidence = []
     place_name = place_details.get('name', 'Unknown')
     
     logging.info(f"\nChecking for matcha at: {place_name}")
     
-    # 1. Check reviews
+    # 1. Primary Check: Website Menu Scan (Deep)
+    website = place_details.get('website')
+    if website:
+        logging.info(f"Initiating deep website/menu scan for: {website}")
+        # It is highly recommended to implement robots.txt checking here in a real application
+        # For example: if not is_allowed_by_robots(website, "MyMatchaScannerBot"):
+        # logging.warning(f"Skipping website scan for {website} due to robots.txt disallow.")
+        # else:
+        # matcha_found_on_menu = check_menu_for_matcha(website)
+
+        matcha_found_on_menu = check_menu_for_matcha(website) # Call the enhanced function
+        if matcha_found_on_menu:
+            matcha_evidence.append("Found on menu (website scan)")
+    else:
+        logging.info("No website available for deep menu scan.")
+    
+    # Set has_matcha strictly based on menu scan
+    has_matcha = matcha_found_on_menu
+
+    # 2. Collect other supporting evidence (does not change has_matcha status)
     if 'reviews' in place_details:
-        logging.info(f"Checking {len(place_details['reviews'])} reviews")
+        logging.info(f"Checking {len(place_details['reviews'])} reviews for supporting evidence...")
         for i, review in enumerate(place_details['reviews'], 1):
             review_text = review.get('text', '').lower()
             if 'matcha' in review_text:
-                has_matcha = True
-                matcha_evidence.append("Found in reviews")
-                logging.info(f"Matcha found in review {i}: {review_text[:100]}...")
-                break
+                matcha_evidence.append("Mentioned in reviews")
+                logging.info(f"Matcha mentioned in review {i}: {review_text[:100]}...")
+                break # Only need one mention as supporting evidence
     else:
-        logging.info("No reviews available")
+        logging.info("No reviews available to check for supporting evidence.")
     
-    # 2. Check website/menu
-    website = place_details.get('website')
-    if website:
-        logging.info(f"Checking website: {website}")
-        if check_menu_for_matcha(website):
-            has_matcha = True
-            matcha_evidence.append("Found on menu")
-    else:
-        logging.info("No website available")
+    name_lower = place_details.get('name', '').lower()
+    if 'matcha' in name_lower:
+        matcha_evidence.append("Mentioned in name")
+        logging.info(f"Matcha mentioned in place name: {place_details.get('name')}")
     
-    # 3. Check name and description
-    name = place_details.get('name', '').lower()
-    if 'matcha' in name:
-        has_matcha = True
-        matcha_evidence.append("Found in name")
-        logging.info(f"Matcha found in name: {name}")
-    
-    # 4. Check editorial summary
-    if 'editorial_summary' in place_details:
-        summary = place_details['editorial_summary'].get('overview', '').lower()
+    if 'editorial_summary' in place_details and place_details['editorial_summary'].get('overview'):
+        summary = place_details['editorial_summary']['overview'].lower()
         if 'matcha' in summary:
-            has_matcha = True
-            matcha_evidence.append("Found in editorial summary")
-            logging.info(f"Matcha found in editorial summary: {summary[:100]}...")
+            matcha_evidence.append("Mentioned in editorial summary")
+            logging.info(f"Matcha mentioned in editorial summary: {summary[:100]}...")
     
-    # 5. Check types/categories
-    types = place_details.get('types', [])
-    logging.info(f"Business types: {types}")
-    if 'cafe' in types or 'coffee_shop' in types:
-        matcha_evidence.append("Is a cafe/coffee shop")
+    place_types = place_details.get('type', []) # 'type' should be a list if fetched correctly
+    if not isinstance(place_types, list): # Ensure it's a list
+        place_types = [place_types] if place_types else []
+
+    logging.info(f"Business types: {place_types}")
+    if 'cafe' in place_types or 'coffee_shop' in place_types or 'tea_room' in place_types:
+        matcha_evidence.append("Relevant business type (e.g., cafe, tea room)")
     
-    logging.info(f"Final result for {place_name}: {'Has matcha' if has_matcha else 'No matcha'} - Evidence: {matcha_evidence}")
+    if not matcha_evidence and not has_matcha: # If no evidence at all
+        matcha_evidence.append("No specific matcha indicators found.")
+
+    logging.info(f"Final result for {place_name}: {'Has matcha (on menu)' if has_matcha else 'No matcha on menu'} - Evidence collected: {matcha_evidence}")
     return has_matcha, matcha_evidence
 
 def search_coffee_shops(gmaps, location="London, UK", radius=5000):
